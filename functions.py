@@ -1,5 +1,10 @@
 import random
 
+
+def function_call(function_name: str, function_args: dict) -> dict:
+    return globals()[function_name](**function_args)
+
+
 available_functions = [
     {
         "name": "get_current_weather",
@@ -16,14 +21,6 @@ available_functions = [
         },
     }
 ]
-
-
-def function_call(function_name: str, function_args: dict) -> dict:
-    match function_name:
-        case "get_current_weather":
-            return get_current_weather(**function_args)
-        case _:
-            raise NotImplementedError(f"Function {function_name} not implemented")
 
 
 def get_current_weather(location: str) -> dict:
