@@ -9,28 +9,23 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 completion_model = os.getenv("OPENAI_COMPLETION_MODEL")
 
 
-def get_chat_completion(messages: list[dict], available_functions: list[dict]) -> dict:
+def get_chat_completion(messages: list[dict]) -> dict:
     response = openai.ChatCompletion.create(
         model=completion_model,
         messages=messages,
-        functions=available_functions,
+        functions=functions.available_functions,
     )
     return response
 
 
-def handle_function_call(messages: list[dict], available_functions: list[dict]) -> dict:
+def handle_function_call(messages: list[dict]) -> dict:
     completion_message = messages[-1]
     function_name = completion_message["function_call"]["name"]
     function_args = json.loads(completion_message["function_call"]["arguments"])
-    function_call_result = None
-    match function_name:
-        # NOTE Register calls to functions here
-        case "get_current_weather":
-            function_call_result = functions.get_current_weather(**function_args)
-        case _:
-            raise NotImplementedError(f"Function {function_name} not implemented")
-    if function_call_result is None:
-        raise ValueError(f"Function {function_name} returned None")
+    try:
+        function_call_result = functions.function_call(function_name, function_args)
+    except Exception as e:
+        raise ValueError(f"Function call failed: {e}")
     messages.append(
         {
             "role": "function",
@@ -38,23 +33,17 @@ def handle_function_call(messages: list[dict], available_functions: list[dict]) 
             "content": json.dumps(function_call_result),
         }
     )
-    completion = get_chat_completion(
-        messages=messages,
-        available_functions=available_functions,
-    )
+    completion = get_chat_completion(messages)
     completion_details = completion["choices"][0]
     completion_message = completion_details["message"]
     return completion_message
 
 
-def main(prompt: str):
+def main(prompt: str) -> dict:
     messages = [
         {"role": "user", "content": prompt},
     ]
-    available_functions = functions.available_functions
-    completion = get_chat_completion(
-        messages=messages, available_functions=available_functions
-    )
+    completion = get_chat_completion(messages)
     completion_details = completion["choices"][0]
     finish_reason = completion_details["finish_reason"]
     completion_message = None
@@ -63,13 +52,12 @@ def main(prompt: str):
             completion_message = completion_details["message"]
         case "function_call":
             messages.append(completion_details["message"])
-            completion_message = handle_function_call(
-                messages=messages, available_functions=available_functions
-            )
+            completion_message = handle_function_call(messages)
         case _:
             raise NotImplementedError(f"Finish reason {finish_reason} not implemented")
-    print(completion_message["content"])
+    return completion_message
 
 
 if __name__ == "__main__":
-    main(prompt="What's the weather like in San Francisco?")
+    response = main(prompt="What's the weather like in San Francisco?")
+    print(response)
